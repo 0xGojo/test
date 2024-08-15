@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	// "context"
 	// "encoding/json"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/joho/godotenv"
 	// "github.com/gorilla/websocket"
 	"github.com/wewe/abis"
 	"log"
@@ -16,18 +18,15 @@ import (
 	"os"
 	"strings"
 	"time"
-	"github.com/joho/godotenv"
 )
-
 
 func main() {
 	fmt.Println("hello world")
 
 	err := godotenv.Load()
-  if err != nil {
-    log.Fatal("Error loading .env file")
-  }
-
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
 
 	privateKeyStr := os.Getenv("PRIVATE_KEY")
 	routerAddr := os.Getenv("ROUTER")
@@ -40,7 +39,7 @@ func main() {
 	routerContract := common.HexToAddress(routerAddr)
 	wethToken := common.HexToAddress(wethAddr)
 	vultToken := common.HexToAddress(vultAddr)
-	
+
 	// usdt: 0xdAC17F958D2ee523a2206206994597C13D831ec7
 	// vult: xxxx
 
@@ -48,7 +47,7 @@ func main() {
 	amountETHIn := big.NewInt(0)
 	amoutOut := big.NewInt(0)
 	gasPrice := big.NewInt(0)
-	
+
 	amountETHIn.SetString(amountInConfig, 10)
 	amoutOut.SetString(amountOutExpect, 10)
 	gasPrice.SetString(gasConfig, 10)
@@ -75,14 +74,11 @@ func main() {
 		log.Panic(err.Error())
 	}
 
-	chainId := big.NewInt(1)
+	chainId, _ := clientInst.ChainID(context.Background())
 	auth, err := bind.NewKeyedTransactorWithChainID(privateKey, chainId)
 	if err != nil {
 		log.Panic(err.Error())
 	}
-
-	auth.GasPrice = gasPrice
-	auth.Value = amountETHIn
 
 	// timer
 	channel1 := make(chan string)
@@ -96,12 +92,11 @@ func main() {
 	}
 
 	// single swap
-	singleSwapData := abis.ISwapRouterExactInputSingleParams{
+	singleSwapData := abis.IV3SwapRouterExactInputSingleParams{
 		TokenIn:           wethToken,
 		TokenOut:          vultToken,
 		Fee:               fee,
 		Recipient:         auth.From,
-		Deadline:          big.NewInt(100000000),
 		AmountIn:          amountETHIn,
 		AmountOutMinimum:  amoutOut,
 		SqrtPriceLimitX96: big.NewInt(0),
@@ -129,7 +124,13 @@ func main() {
 		//
 		v := <-channel1
 		fmt.Println(v)
-		tx, err := uniV3Router.Multicall(auth, [][]byte{swapSingleInputData, refundETHData})
+		auth.GasPrice = gasPrice
+		auth.Value = amountETHIn
+		fmt.Println("value: ", amountETHIn.String())
+		fmt.Println("gasPrice: ", auth.GasPrice)
+		fmt.Println("from: ", auth.From.String())
+
+		tx, err := uniV3Router.Multicall1(auth, [][]byte{swapSingleInputData, refundETHData})
 		if err != nil {
 			fmt.Println(err.Error())
 			if err.Error() != "execution reverted" {
