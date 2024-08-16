@@ -126,9 +126,6 @@ func main() {
 		fmt.Println(v)
 		auth.GasPrice = gasPrice
 		auth.Value = amountETHIn
-		fmt.Println("value: ", amountETHIn.String())
-		fmt.Println("gasPrice: ", auth.GasPrice)
-		fmt.Println("from: ", auth.From.String())
 
 		tx, err := uniV3Router.Multicall1(auth, [][]byte{swapSingleInputData, refundETHData})
 		if err != nil {
